@@ -135,32 +135,30 @@ class Doctor(Person):
 
 
 class Bed(Entity):
-    def __init__(self, id, bed_type="General"):
+    def __init__(self, id, bed_type="General", ward="A"):
         super().__init__(id)
-        self.bed_type = bed_type
+        self.bed_type = bed_type  # e.g., General, ICU, Special
+        self.ward = ward          # e.g., A, B, C...
         self.patient_id = None
-        self.doctor_id = None
         self.priority = None
         self.status = "Vacant"
 
-    def assign(self, patient_id, doctor_id, priority):
+    def assign(self, patient_id, priority):
         self.patient_id = patient_id
-        self.doctor_id = doctor_id
         self.priority = priority
         self.status = "Occupied"
 
     def vacate(self):
         self.patient_id = None
-        self.doctor_id = None
         self.priority = None
         self.status = "Vacant"
 
     def to_dict(self):
         return {
             "id": self.id,
+            "ward": self.ward,
             "bed_type": self.bed_type,
             "patientId": self.patient_id,
-            "doctorId": self.doctor_id,
             "priority": self.priority,
             "status": self.status,
             "isDeleted": self.is_deleted
@@ -209,11 +207,11 @@ class HospitalManager:
         self.save_entity(self.doctor_file, doctor)
         print(f" Doctor added: {did}")
 
-    def add_bed(self, bed_type="General"):  #default argument
+    def add_bed(self, bed_type="General", ward="A"):
         bid = self.generate_id(self.bed_file, "B")
-        bed = Bed(bid, bed_type)
+        bed = Bed(bid, bed_type=bed_type.capitalize(), ward=ward.upper())
         self.save_entity(self.bed_file, bed)
-        print(f" Bed added: {bid}")
+        print(f" Bed added: {bid} | Type: {bed_type.capitalize()} | Ward: {ward.upper()}")
 
     def assign_bed(self, patient_id, doctor_id):
         patients = read_json(self.patient_file)
@@ -293,25 +291,17 @@ class HospitalManager:
             print("Patient not found or deleted.")
 
     def show_bed_status(self):
-        beds = read_json(self.bed_file)
-        patients = read_json(self.patient_file)
-        doctors = read_json(self.doctor_file)
-        priority_map = {"red": 3, "yellow": 2, "green": 1, None: 0}
+        beds = read_json(self.bed_file)  # Reuse existing read_json
+        if not beds:
+            print(" No beds available.")
+            return
 
-        sorted_beds = sorted(beds, key=lambda b: (b["status"] != "Occupied", -priority_map.get(b.get("priority"), 0))) #syntax sorted(iterable, key=lambda item: (condition1, condition2))
-
-        print("\nBed Status (Sorted by Priority):")
-        for b in sorted_beds:
-            if b["isDeleted"]:
-                continue
-
-            patient = next((p for p in patients if p["id"] == b["patientId"] and not p["isDeleted"]), None) #used to fetch details of patient and doctor for that bed
-            doctor = next((d for d in doctors if d["id"] == b["doctorId"] and not d["isDeleted"]), None)
-
-            print(f"Bed ID: {b['id']}, Type: {b['bed_type']}, Status: {b['status']}, Priority: {b['priority']}, "
-                  f"Patient: {patient['name'] if patient else 'None'} (Age: {patient['age'] if patient else 'N/A'}, Gender: {patient['gender'] if patient else 'N/A'}), "
-                  f"Doctor: {doctor['name'] if doctor else 'None'} (Age: {doctor['age'] if doctor else 'N/A'}, Gender: {doctor['gender'] if doctor else 'N/A'})")
-
+        print(f"{'Bed ID':<8} {'Ward':<6} {'Type':<10} {'Status':<10} {'Patient ID':<12} {'Priority':<10}")
+        print("-" * 60)
+        for bed in beds:
+            if not bed.get("isDeleted", False):  # Skip soft-deleted beds
+                print(f"{bed['id']:<8} {bed['ward']:<6} {bed['bed_type']:<10} {bed['status']:<10} "
+                    f"{str(bed.get('patientId') or '-'): <12} {str(bed.get('priority') or '-'): <10}")
     def show_patients(self):
         patients = read_json(self.patient_file)
         print("\n Patients List:")
@@ -474,8 +464,9 @@ def main():
                 specialization = input("Enter specialization: ")
                 h.add_doctor(name, age, gender, specialization)
             elif choice == "3":
-                bed_type = input("Enter bed type (General/ICU): ") or "General"
-                h.add_bed(bed_type)
+                bed_type_input = input("Enter bed type (General/ICU/Special): ") or "General"
+                ward_input = input("Enter ward (A/B/C etc.): ") or "A"
+                h.add_bed(bed_type_input, ward_input)
             elif choice == "4":
                 pid = input("Enter patient ID: ")
                 did = input("Enter doctor ID: ")
