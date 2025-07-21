@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 import json
 from abc import ABC, abstractmethod
+from collections import defaultdict
 
 def backup_filename(file):
     # E.g., patients.json → patients_backup.json
@@ -110,13 +111,17 @@ class Patient(Person):
         self.priority = priority.capitalize()
         self.present_medication = []
         self.past_medication = []
+        self.doctor_id = None  # Initially unassigned
+        self.bed_id = None     # Initially unassigned
 
     def to_dict(self):
         base_dict = super().to_dict()
         base_dict.update({
             "priority": self.priority,
             "present_medication": self.present_medication,
-            "past_medication": self.past_medication
+            "past_medication": self.past_medication,
+            "doctorId": self.doctor_id,
+            "bedId": self.bed_id
         })
         return base_dict
 
@@ -180,6 +185,85 @@ class HospitalManager:
              "Physiotherapy": 1000
          }
 
+
+    def assign_doctor_to_patient(self, patient_id, doctor_id):
+        patients = read_json(self.patient_file)
+        doctors = read_json(self.doctor_file)
+
+        doctor_exists = any(doc["id"] == doctor_id for doc in doctors)
+        if not doctor_exists:
+            print(f"Doctor with ID {doctor_id} not found.")
+            return
+
+        updated = False
+        for patient in patients:
+            if patient["id"] == patient_id:
+                patient["doctorId"] = doctor_id
+                updated = True
+                break
+
+        if updated:
+            write_json(self.patient_file, patients)
+            print(f"Assigned Doctor {doctor_id} to Patient {patient_id}")
+        else:
+            print(f"Patient with ID {patient_id} not found.")
+
+
+    def assign_bed_to_patient(self, patient_id, bed_id):
+        patients = read_json(self.patient_file)
+        beds = read_json(self.bed_file)
+
+        bed = next((b for b in beds if b["id"] == bed_id), None)
+        if not bed:
+            print(f"Bed with ID {bed_id} not found.")
+            return
+
+        patient = next((p for p in patients if p["id"] == patient_id), None)
+        if not patient:
+            print(f"Patient with ID {patient_id} not found.")
+            return
+
+        updated_patient = False
+        updated_bed = False
+
+        for p in patients:
+            if p["id"] == patient_id:
+                p["bedId"] = bed_id
+                updated_patient = True
+                break
+
+        for b in beds:
+            if b["id"] == bed_id:
+                b["patientId"] = patient_id
+                b["priority"] = patient.get("priority", "low")
+                b["status"] = "occupied"  # <-- update bed status here
+                updated_bed = True
+                break
+
+        if updated_patient and updated_bed:
+            write_json(self.patient_file, patients)
+            write_json(self.bed_file, beds)
+            print(f"Assigned Bed {bed_id} to Patient {patient_id} and marked bed as occupied.")
+        else:
+            print("Assignment failed.")
+
+
+    def get_patients_by_doctor(self, doctor_id):
+        patients = read_json(self.patient_file)
+        doctor_patients = [p for p in patients if p.get("doctorId") == doctor_id and not p.get("isDeleted", False)]
+
+        if not doctor_patients:
+            print(f"No patients found for Doctor ID: {doctor_id}")
+            return
+
+        # Priority map: higher value = higher priority
+        priority_order = {"red": 3, "yellow": 2, "green": 1}
+        doctor_patients.sort(key=lambda p: -priority_order.get(p.get("priority", "").lower(), 0))
+
+        print(f"\nPatients assigned to Doctor ID: {doctor_id} (sorted by priority)")
+        for p in doctor_patients:
+            print(f"ID: {p['id']}, Name: {p['name']}, Age: {p['age']}, Gender: {p['gender']}, Priority: {p['priority']}")
+
     def generate_id(self, file, prefix):  #generated Id (P0004)
         try:
             data = read_json(file)
@@ -212,36 +296,6 @@ class HospitalManager:
         bed = Bed(bid, bed_type=bed_type.capitalize(), ward=ward.upper())
         self.save_entity(self.bed_file, bed)
         print(f" Bed added: {bid} | Type: {bed_type.capitalize()} | Ward: {ward.upper()}")
-
-    def assign_bed(self, patient_id, doctor_id):
-        patients = read_json(self.patient_file)
-        doctors = read_json(self.doctor_file)
-        beds = read_json(self.bed_file)
-
-        patient = next((p for p in patients if p["id"] == patient_id and not p["isDeleted"]), None) #next(iterator, default)
-        doctor = next((d for d in doctors if d["id"] == doctor_id and not d["isDeleted"]), None) #iterates through each doctor and returns if id is matched
-        available_bed = next((b for b in beds if b["status"] == "Vacant" and not b["isDeleted"]), None) #gets available bed
-
-        if not patient:
-            print(" Patient not found or deleted.")
-            return
-        if not doctor:
-            print(" Doctor not found or deleted.")
-            return
-        if not available_bed:
-            print(" No vacant beds available.")
-            return
-        if any(b["patientId"] == patient_id for b in beds if not b["isDeleted"]):
-            print(" Patient already assigned to a bed.")
-            return
-
-        available_bed["patientId"] = patient_id
-        available_bed["doctorId"] = doctor_id
-        available_bed["status"] = "Occupied"
-        available_bed["priority"] = patient.get("priority", "yellow")
-
-        write_json(self.bed_file, beds)
-        print(f" Bed {available_bed['id']} assigned to patient {patient_id} under doctor {doctor_id}.")
 
     def discharge_patient(self, patient_id):
         patients = read_json(self.patient_file)
@@ -290,18 +344,49 @@ class HospitalManager:
         else:
             print("Patient not found or deleted.")
 
-    def show_bed_status(self):
-        beds = read_json(self.bed_file)  # Reuse existing read_json
-        if not beds:
-            print(" No beds available.")
-            return
 
-        print(f"{'Bed ID':<8} {'Ward':<6} {'Type':<10} {'Status':<10} {'Patient ID':<12} {'Priority':<10}")
-        print("-" * 60)
-        for bed in beds:
-            if not bed.get("isDeleted", False):  # Skip soft-deleted beds
-                print(f"{bed['id']:<8} {bed['ward']:<6} {bed['bed_type']:<10} {bed['status']:<10} "
-                    f"{str(bed.get('patientId') or '-'): <12} {str(bed.get('priority') or '-'): <10}")
+    def show_bed_status(self):
+       beds = read_json(self.bed_file)
+       if not beds:
+           print("No beds available.")
+           return
+
+       ward_summary = defaultdict(lambda: {
+           "General_total": 0, "General_occupied": 0,
+           "ICU_total": 0, "ICU_occupied": 0,
+           "Special_total": 0, "Special_occupied": 0
+       })
+
+       for bed in beds:
+           if bed.get("isDeleted", False):
+               continue
+           ward = bed.get("ward", "Unknown")
+           bed_type = bed.get("bed_type", "").lower()
+           status = bed.get("status", "").lower()
+
+           key_total = f"{bed_type.capitalize()}_total"
+           key_occupied = f"{bed_type.capitalize()}_occupied"
+           if key_total in ward_summary[ward]:
+               ward_summary[ward][key_total] += 1
+               if status == "occupied":
+                   ward_summary[ward][key_occupied] += 1
+
+       print("---- Bed Summary by Ward ----")
+       for ward, counts in ward_summary.items():
+           print(f"Ward: {ward}")
+           print(f"  General: {counts['General_occupied']} occupied / {counts['General_total']} total")
+           print(f"  ICU    : {counts['ICU_occupied']} occupied / {counts['ICU_total']} total")
+           print(f"  Special: {counts['Special_occupied']} occupied / {counts['Special_total']} total")
+       print("-" * 60)
+
+       # Now print the full bed status table
+       print(f"{'Bed ID':<8} {'Ward':<6} {'Type':<10} {'Status':<10} {'Patient ID':<12} {'Priority':<10}")
+       print("-" * 60)
+       for bed in beds:
+           if not bed.get("isDeleted", False):
+               print(f"{bed['id']:<8} {bed['ward']:<6} {bed['bed_type']:<10} {bed['status']:<10} "
+                     f"{str(bed.get('patientId') or '-'): <12} {str(bed.get('priority') or '-'): <10}")
+
     def show_patients(self):
         patients = read_json(self.patient_file)
         print("\n Patients List:")
@@ -316,26 +401,26 @@ class HospitalManager:
             if not d["isDeleted"]:
                 print(f"ID: {d['id']}, Name: {d['name']}, Age: {d['age']}, Gender: {d['gender']}, Specialization: {d['specialization']}")
 
-    def doctor_visit(self, patient_id): #this function will add new medication to list, and can move medication to past medication field defined in patient class
+    def doctor_visit(self, patient_id):
         patients = read_json(self.patient_file)
         for p in patients:
-            if p["id"] == patient_id and not p["isDeleted"]: #fetch detail with requesting id equal to id in json
+            if p["id"] == patient_id and not p["isDeleted"]:
                 print(f"\n Doctor Visit for {p['name']} (ID: {p['id']}, Age: {p['age']}, Gender: {p['gender']})")
                 print(f"Current Medications: {', '.join(p['present_medication']) or 'None'}")
                 print(f"Past Medications: {', '.join(p['past_medication']) or 'None'}")
 
                 to_remove = input("Enter medications to stop (comma-separated): ").strip()
                 if to_remove:
-                    to_remove_set = {m.strip() for m in to_remove.split(",")}
-                    p["present_medication"] = [m for m in p["present_medication"] if m not in to_remove_set]
-                    for m in to_remove_set:
-                        if m not in p["past_medication"]:
-                            p["past_medication"].append(m)
+                    to_remove_list = [m.strip() for m in to_remove.split(",")]
+                    for m in to_remove_list:
+                        if m in p["present_medication"]:
+                            p["present_medication"].remove(m)
+                        p["past_medication"].append(m)
 
                 to_add = input("Enter new medications (comma-separated): ").strip()
                 if to_add:
                     for med in map(str.strip, to_add.split(",")):
-                        if med and med not in p["present_medication"] and med not in p["past_medication"]:
+                        if med:
                             p["present_medication"].append(med)
 
                 write_json(self.patient_file, patients)
@@ -427,6 +512,78 @@ class HospitalManager:
         except (IndexError, ValueError):
             print(" Invalid selection.")
 
+    def change_bed_for_patient(self, patient_id, new_bed_id):
+       patients = read_json(self.patient_file)
+       beds = read_json(self.bed_file)
+
+       patient = next((p for p in patients if p["id"] == patient_id and not p.get("isDeleted", False)), None)
+       if not patient:
+           print(f"Patient with ID {patient_id} not found.")
+           return
+
+       new_bed = next((b for b in beds if b["id"] == new_bed_id and not b.get("isDeleted", False)), None)
+       if not new_bed:
+           print(f"New Bed with ID {new_bed_id} not found.")
+           return
+
+       if new_bed.get("status") == "occupied":
+           print(f"Bed {new_bed_id} is already occupied.")
+           return
+
+       old_bed_id = patient.get("bedId")
+
+       # Free up the old bed
+       for b in beds:
+           if b["id"] == old_bed_id:
+               b["patientId"] = None
+               b["priority"] = None
+               b["status"] = "vacant"
+               break
+
+       # Assign new bed
+       for b in beds:
+           if b["id"] == new_bed_id:
+               b["patientId"] = patient_id
+               b["priority"] = patient.get("priority", "low")
+               b["status"] = "occupied"
+               break
+
+       # Update patient
+       for p in patients:
+           if p["id"] == patient_id:
+               p["bedId"] = new_bed_id
+               break
+
+       write_json(self.patient_file, patients)
+       write_json(self.bed_file, beds)
+       print(f"Changed bed for Patient {patient_id} from Bed {old_bed_id} to Bed {new_bed_id}.")
+
+    def change_doctor_for_patient(self, patient_id, new_doctor_id):
+        patients = read_json(self.patient_file)
+        doctors = read_json(self.doctor_file)
+
+        # Find the patient
+        patient = next((p for p in patients if p["id"] == patient_id and not p.get("isDeleted", False)), None)
+        if not patient:
+            print(f"Patient with ID {patient_id} not found.")
+            return
+
+        # Find the new doctor
+        doctor = next((d for d in doctors if d["id"] == new_doctor_id and not d.get("isDeleted", False)), None)
+        if not doctor:
+            print(f"Doctor with ID {new_doctor_id} not found.")
+            return
+
+        # Update doctorId
+        old_doctor_id = patient.get("doctorId")
+        for p in patients:
+            if p["id"] == patient_id:
+                p["doctorId"] = new_doctor_id
+                break
+
+        write_json(self.patient_file, patients)
+        print(f"Changed doctor for Patient {patient_id} from Doctor {old_doctor_id} to Doctor {new_doctor_id}.")
+
 
 # ---------- Main Menu ----------
 def main():
@@ -437,15 +594,18 @@ def main():
         print("2. Add Doctor")
         print("3. Add Bed")
         print("4. Assign Bed to Patient")
-        print("5. Discharge Patient")
+        print("5. assign doctor to patient")
         print("6. Show Bed Status")
         print("7. Show Patients")
         print("8. Show Doctors")
         print("9. Update Patient Priority")
         print("10. Doctor Visit (Update Medication)")
         print("11. Fetch Patients by Doctor (Sorted by Priority)")
-        print("12. Change Doctor for a Bed")
+        print("12. change Bed for patient: ")
         print("13. Billing")
+        print("14. Discharge Patient")
+        print("15> change doctor for patient")
+
 
         print("0. Exit")
 
@@ -469,11 +629,12 @@ def main():
                 h.add_bed(bed_type_input, ward_input)
             elif choice == "4":
                 pid = input("Enter patient ID: ")
-                did = input("Enter doctor ID: ")
-                h.assign_bed(pid, did)
+                bid = input("Enter Bed Id: ")
+                h.assign_bed_to_patient(pid, bid)
             elif choice == "5":
                 pid = input("Enter patient ID: ")
-                h.discharge_patient(pid)
+                did = input("Enter Doctor Id: ")
+                h.assign_doctor_to_patient(pid, did)
             elif choice == "6":
                 h.show_bed_status()
             elif choice == "7":
@@ -489,14 +650,21 @@ def main():
                 h.doctor_visit(pid)
             elif choice == "11":
                 did = input("Enter doctor ID: ")
-                h.fetch_patients_by_doctor(did)
+                h.get_patients_by_doctor(did)
             elif choice == "12":
-                bid = input("Enter Bed ID: ")
-                new_did = input("Enter New Doctor ID: ")
-                h.change_doctor_for_bed(bid, new_did)
+                pid = input("Enter Patient ID: ")
+                new_did = input("Enter Bed ID: ")
+                h.change_bed_for_patient(pid, new_did)
             elif choice == "13":
                 pid = input("Enter patient ID: ")
                 h.billing_menu(pid)
+            elif choice == "14":
+                pid = input("Enter patient ID: ")
+                h.discharge_patient(pid)
+            elif choice == "15":
+                pid = input("Enter patient ID: ")
+                did = input("Enter Doctor Id: ")
+                h.change_doctor_for_patient(pid, did)
 
             elif choice == "0":
                 print("👋 Exiting...")
