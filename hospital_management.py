@@ -29,11 +29,11 @@ class HospitalManager:
         self.save_entity(self.doctor_file, doctor)
         print(f" Doctor added: {did}")
 
-    def add_bed(self, bed_type="General", ward="A"):
+    def add_bed(self, bed_type="GENERAL", ward="A"):
         bid = self.generate_id(self.bed_file, "B")
-        bed = Bed(bid, bed_type=bed_type.capitalize(), ward=ward.upper())
+        bed = Bed(bid, bed_type=bed_type.upper(), ward=ward.upper())
         self.save_entity(self.bed_file, bed)
-        print(f" Bed added: {bid} | Type: {bed_type.capitalize()} | Ward: {ward.upper()}")
+        print(f" Bed added: {bid} | Type: {bed_type.upper()} | Ward: {ward.upper()}")
 
     def assign_bed_to_patient(self, patient_id, bed_id):
         patients = read_json(self.patient_file)
@@ -96,46 +96,45 @@ class HospitalManager:
             print(f"Patient with ID {patient_id} not found.")
 
     def show_bed_status(self):
-       beds = read_json(self.bed_file)
-       if not beds:
-           print("No beds available.")
-           return
+        beds = read_json(self.bed_file)
+        if not beds:
+            print("No beds available.")
+            return
 
-       ward_summary = defaultdict(lambda: {
-           "General_total": 0, "General_occupied": 0,
-           "ICU_total": 0, "ICU_occupied": 0,
-           "Special_total": 0, "Special_occupied": 0
-       })
+        ward_summary = defaultdict(lambda: {
+            "GENERAL_total": 0, "GENERAL_occupied": 0,
+            "ICU_total": 0, "ICU_occupied": 0,
+            "SPECIAL_total": 0, "SPECIAL_occupied": 0
+        })
 
-       for bed in beds:
-           if bed.get("isDeleted", False):
-               continue
-           ward = bed.get("ward", "Unknown")
-           bed_type = bed.get("bed_type", "").lower()
-           status = bed.get("status", "").lower()
+        for bed in beds:
+            if bed.get("isDeleted", False):
+                continue
+            ward = bed.get("ward", "UNKNOWN")
+            bed_type = bed.get("bed_type", "").upper()
+            status = bed.get("status", "").lower()
 
-           key_total = f"{bed_type.capitalize()}_total"
-           key_occupied = f"{bed_type.capitalize()}_occupied"
-           if key_total in ward_summary[ward]:
-               ward_summary[ward][key_total] += 1
-               if status == "occupied":
-                   ward_summary[ward][key_occupied] += 1
+            key_total = f"{bed_type}_total"
+            key_occupied = f"{bed_type}_occupied"
+            if key_total in ward_summary[ward]:
+                ward_summary[ward][key_total] += 1
+                if status == "occupied":
+                    ward_summary[ward][key_occupied] += 1
 
-       print("---- Bed Summary by Ward ----")
-       for ward, counts in ward_summary.items():
-           print(f"Ward: {ward}")
-           print(f"  General: {counts['General_occupied']} occupied / {counts['General_total']} total")
-           print(f"  ICU    : {counts['ICU_occupied']} occupied / {counts['ICU_total']} total")
-           print(f"  Special: {counts['Special_occupied']} occupied / {counts['Special_total']} total")
-       print("-" * 60)
+        print("---- Bed Summary by Ward ----")
+        for ward, counts in ward_summary.items():
+            print(f"Ward: {ward}")
+            print(f"  General: {counts['GENERAL_occupied']} occupied / {counts['GENERAL_total']} total")
+            print(f"  ICU    : {counts['ICU_occupied']} occupied / {counts['ICU_total']} total")
+            print(f"  Special: {counts['SPECIAL_occupied']} occupied / {counts['SPECIAL_total']} total")
+        print("-" * 60)
 
-       # Now print the full bed status table
-       print(f"{'Bed ID':<8} {'Ward':<6} {'Type':<10} {'Status':<10} {'Patient ID':<12} {'Priority':<10}")
-       print("-" * 60)
-       for bed in beds:
-           if not bed.get("isDeleted", False):
-               print(f"{bed['id']:<8} {bed['ward']:<6} {bed['bed_type']:<10} {bed['status']:<10} "
-                     f"{str(bed.get('patientId') or '-'): <12} {str(bed.get('priority') or '-'): <10}")
+        print(f"{'Bed ID':<8} {'Ward':<6} {'Type':<10} {'Status':<10} {'Patient ID':<12} {'Priority':<10}")
+        print("-" * 60)
+        for bed in beds:
+            if not bed.get("isDeleted", False):
+                print(f"{bed['id']:<8} {bed['ward']:<6} {bed['bed_type'].title():<10} {bed['status'].capitalize():<10} "
+                      f"{str(bed.get('patientId') or '-'): <12} {str(bed.get('priority') or '-'): <10}")
 
     def show_patients(self):
         patients = read_json(self.patient_file)
