@@ -19,7 +19,7 @@ def main():
         print("12. change Bed for patient: ")
         print("13. Billing")
         print("14. Discharge Patient")
-        print("15. change doctor for patient")
+        print("15> change doctor for patient")
         print("0. Exit")
 
         choice = input("Enter choice: ")
@@ -45,7 +45,6 @@ def main():
                 bid = input("Enter Bed Id: ")
                 h.assign_bed_to_patient(pid, bid)
             elif choice == "5":
-                h.show_doctors()
                 pid = input("Enter patient ID: ")
                 did = input("Enter Doctor Id: ")
                 h.assign_doctor_to_patient(pid, did)

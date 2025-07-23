@@ -178,37 +178,33 @@ class HospitalManager:
 
 
 
+
+
     def discharge_patient(self, patient_id):
-            patients = read_json(self.patient_file)
-            beds = read_json(self.bed_file)
+        patients = read_json(self.patient_file)
+        beds = read_json(self.bed_file)
 
-            patient = next((p for p in patients if p["id"] == patient_id and not p.get("isDeleted", False)), None)
-            if not patient:
-                print(" Patient not found or already discharged.")
-                return
+        found = False
+        for p in patients:
+            if p["id"] == patient_id and not p["isDeleted"]:
+                p["isDeleted"] = True
+                found = True
+                break
 
-            print(f"\nBilling Summary for {patient['name']} (ID: {patient_id}):")
-            billing_items = patient.get("billing", [])
-            total_amount = sum(self.facilities.get(item, 0) for item in billing_items)
-            if billing_items:
-                for item in billing_items:
-                    print(f" - {item}: ₹{self.facilities.get(item, 0)}")
-            else:
-                print(" No facilities used.")
-            print(f"Total Bill: ₹{total_amount}")
+        if not found:
+            print(" Patient not found or already discharged.")
+            return
 
-            patient["isDeleted"] = True
+        for bed in beds:  #empty the occupied bed details
+            if bed["patientId"] == patient_id:
+                bed["patientId"] = None
+                bed["doctorId"] = None
+                bed["priority"] = None
+                bed["status"] = "Vacant"
 
-            for bed in beds:
-                if bed.get("patientId") == patient_id:
-                    bed["patientId"] = None
-                    bed["doctorId"] = None
-                    bed["priority"] = None
-                    bed["status"] = "Vacant"
-
-            write_json(self.patient_file, patients)
-            write_json(self.bed_file, beds)
-            print(f"✅ Patient {patient_id} discharged and bed freed.")
+        write_json(self.patient_file, patients)
+        write_json(self.bed_file, beds)
+        print(f" Patient {patient_id} discharged, bed freed.")
 
     def update_patient_priority(self, patient_id, new_priority):
         patients = read_json(self.patient_file)
@@ -295,61 +291,61 @@ class HospitalManager:
                 print(f"🔹 Patient ID: {patient['id']}, Name: {patient['name']}, Age: {patient['age']}, "
                       f"Gender: {patient['gender']}, Priority: {patient['priority']}, Bed ID: {bed['id']}")
 
-    # def change_doctor_for_bed(self, bed_id, new_doctor_id):
-    #     beds = read_json(self.bed_file)
-    #     doctors = read_json(self.doctor_file)
+    def change_doctor_for_bed(self, bed_id, new_doctor_id):
+        beds = read_json(self.bed_file)
+        doctors = read_json(self.doctor_file)
 
-    #     bed = next((b for b in beds if b["id"] == bed_id and not b["isDeleted"]), None)
-    #     doctor = next((d for d in doctors if d["id"] == new_doctor_id and not d["isDeleted"]), None)
+        bed = next((b for b in beds if b["id"] == bed_id and not b["isDeleted"]), None)
+        doctor = next((d for d in doctors if d["id"] == new_doctor_id and not d["isDeleted"]), None)
 
-    #     if not bed:
-    #         print(" Bed not found or deleted.")
-    #         return
-    #     if not doctor:
-    #         print(" Doctor not found or deleted.")
-    #         return
-    #     if bed["status"] != "Occupied":
-    #         print(" Bed is not currently occupied.")
-    #         return
+        if not bed:
+            print(" Bed not found or deleted.")
+            return
+        if not doctor:
+            print(" Doctor not found or deleted.")
+            return
+        if bed["status"] != "Occupied":
+            print(" Bed is not currently occupied.")
+            return
 
-    #     old_doctor_id = bed.get("doctorId")
-    #     bed["doctorId"] = new_doctor_id
-    #     write_json(self.bed_file, beds)
+        old_doctor_id = bed.get("doctorId")
+        bed["doctorId"] = new_doctor_id
+        write_json(self.bed_file, beds)
 
-    #     print(f" Doctor for Bed {bed_id} changed from {old_doctor_id} to {new_doctor_id}.")
+        print(f" Doctor for Bed {bed_id} changed from {old_doctor_id} to {new_doctor_id}.")
 
     def billing_menu(self, patient_id):
-            patients = read_json(self.patient_file)
-            patient = next((p for p in patients if p["id"] == patient_id and not p.get("isDeleted", False)), None)
+        patients = read_json(self.patient_file)
+        patient = next((p for p in patients if p["id"] == patient_id and not p["isDeleted"]), None)
 
-            if not patient:
-                print(" Patient not found or already deleted.")
+        if not patient:
+            print(" Patient not found or already deleted.")
+            return
+
+        if "billing" not in patient:
+            patient["billing"] = []
+
+        print(f"\n Current Bill for {patient['name']} (ID: {patient_id}):")
+        total = sum(self.facilities.get(f, 0) for f in patient["billing"])
+        print(f"Total Amount: ₹{total}")
+        print("Added Facilities:", ", ".join(patient['billing']) or "None")
+
+        print("\nAvailable Facilities:")
+        for i, (f, price) in enumerate(self.facilities.items(), 1):
+            print(f"{i}. {f} - ₹{price}")
+
+        try:
+            choice = input("Enter facility number to add (or leave blank to cancel): ").strip()
+            if not choice:
                 return
+            choice = int(choice)
+            facility = list(self.facilities.keys())[choice - 1]
+            patient["billing"].append(facility)
+            write_json(self.patient_file, patients)
+            print(f" {facility} added to bill.")
+        except (IndexError, ValueError):
+            print(" Invalid selection.")
 
-            if "billing" not in patient:
-                patient["billing"] = []
-
-            print(f"\n Current Bill for {patient['name']} (ID: {patient_id}):")
-            total = sum(self.facilities.get(f, 0) for f in patient["billing"])
-            print(f"Total Amount: ₹{total}")
-            print("Added Facilities:", ", ".join(patient['billing']) or "None")
-
-            print("\nAvailable Facilities:")
-            for i, (f, price) in enumerate(self.facilities.items(), 1):
-                print(f"{i}. {f} - ₹{price}")
-
-            try:
-                choice = input("Enter facility number to add (or leave blank to cancel): ").strip()
-                if not choice:
-                    return
-                choice = int(choice)
-                facility = list(self.facilities.keys())[choice - 1]
-                patient["billing"].append(facility)
-                write_json(self.patient_file, patients)
-                print(f" {facility} added to bill.")
-            except (IndexError, ValueError):
-                print(" Invalid selection.")
-    
     def change_bed_for_patient(self, patient_id, new_bed_id):
        patients = read_json(self.patient_file)
        beds = read_json(self.bed_file)

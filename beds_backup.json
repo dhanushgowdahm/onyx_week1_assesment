@@ -1,0 +1,22 @@
+[
+  {
+    "id": "B1",
+    "ward": "A",
+    "bed_type": "GENERAL",
+    "patientId": null,
+    "priority": null,
+    "status": "Vacant",
+    "isDeleted": false,
+    "doctorId": null
+  },
+  {
+    "id": "B2",
+    "ward": "C",
+    "bed_type": "SPECIAL",
+    "patientId": null,
+    "priority": null,
+    "status": "Vacant",
+    "isDeleted": false,
+    "doctorId": null
+  }
+]

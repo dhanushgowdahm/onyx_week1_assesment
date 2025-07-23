@@ -1,0 +1,26 @@
+[
+  {
+    "id": "D1",
+    "name": "dr rao",
+    "age": 34,
+    "gender": "Male",
+    "isDeleted": false,
+    "specialization": "ortho"
+  },
+  {
+    "id": "D2",
+    "name": "dr praveen",
+    "age": 23,
+    "gender": "Male",
+    "isDeleted": false,
+    "specialization": "surgeon"
+  },
+  {
+    "id": "D3",
+    "name": "dr spiti",
+    "age": 34,
+    "gender": "Female",
+    "isDeleted": false,
+    "specialization": "surgeon"
+  }
+]

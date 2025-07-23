@@ -1,0 +1,47 @@
+[
+  {
+    "id": "P1",
+    "name": "dhanush",
+    "age": 23,
+    "gender": "Male",
+    "isDeleted": false,
+    "priority": "Yellow",
+    "present_medication": [],
+    "past_medication": [],
+    "doctorId": "D1",
+    "bedId": "B1",
+    "billing": [
+      "X-Ray",
+      "MRI"
+    ]
+  },
+  {
+    "id": "P2",
+    "name": "dhanush",
+    "age": 23,
+    "gender": "Male",
+    "isDeleted": true,
+    "priority": "Green",
+    "present_medication": [
+      "paracetamol"
+    ],
+    "past_medication": [],
+    "doctorId": "D2",
+    "bedId": "B2",
+    "billing": [
+      "Blood Test"
+    ]
+  },
+  {
+    "id": "P3",
+    "name": "harshith",
+    "age": 34,
+    "gender": "Male",
+    "isDeleted": false,
+    "priority": "Red",
+    "present_medication": [],
+    "past_medication": [],
+    "doctorId": null,
+    "bedId": null
+  }
+]
